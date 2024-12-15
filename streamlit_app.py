@@ -3,6 +3,9 @@ from PyPDF2 import PdfReader
 import re
 import pandas as pd
 
+st.set_page_config(
+        page_title="ExpenseInsight",)
+
 # Function to process the PDF and extract transactions from all pages
 def process_pdf(file):
     # Read the PDF
@@ -69,10 +72,10 @@ def process_pdf(file):
     return df
 
 # Streamlit App UI
-st.title("Bank Statement Processor")
+st.title("ExpenseInsight")
 
 # File upload
-uploaded_file = st.file_uploader("Upload your bank statement PDF", type="pdf")
+uploaded_file = st.file_uploader("Upload your IndusInd Bank Statement PDF", type="pdf")
 
 if uploaded_file is not None:
     try:
