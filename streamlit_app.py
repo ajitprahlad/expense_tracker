@@ -178,19 +178,25 @@ if uploaded_file is not None:
         # Display the chart
         st.altair_chart(weekly_chart, use_container_width=True)
 
-        # Insight 3: Daily Spending Distribution by Day
+       # Insight 3: Daily Spending Distribution by Day
         st.subheader("Daily Spending Trends")
 
-        # Identify the maximum spending amount
-        highest_spending = df['Withdrawals'].max()
+        # Ensure 'Date' column is in datetime format
+        df['Date'] = pd.to_datetime(df['Date'])
 
-        # Add a column to flag days with the highest spending
-        df['Highlight'] = df['Withdrawals'] == highest_spending
+        # Sum up withdrawals for each day
+        daily_withdrawals = df.groupby('Date', as_index=False)['Withdrawals'].sum()
+
+        # Identify the maximum spending amount
+        highest_spending = daily_withdrawals['Withdrawals'].max()
+
+        # Add a column to flag days with the highest total spending
+        daily_withdrawals['Highlight'] = daily_withdrawals['Withdrawals'] == highest_spending
 
         # Create an Altair chart for daily spending
-        daily_spending_chart = alt.Chart(df).mark_bar().encode(
+        daily_spending_chart = alt.Chart(daily_withdrawals).mark_bar().encode(
             x=alt.X('Date:T', title='Date'),
-            y=alt.Y('Withdrawals:Q', title='Withdrawal Amount'),
+            y=alt.Y('Withdrawals:Q', title='Total Withdrawal Amount'),
             color=alt.condition(
                 alt.datum.Highlight,  # Highlight days with the highest spending
                 alt.value('red'),     # Use red for highlighted bars
@@ -205,14 +211,31 @@ if uploaded_file is not None:
         # Display the chart
         st.altair_chart(daily_spending_chart, use_container_width=True)
 
-        # Insight 4: Top Vendors
+        # Insight 4: Top 5 Expenses
         st.subheader("Top 5 Expenses")
-        # Group by 'Particulars' and sum withdrawals, then get the top 5
-        expense_summary = df.groupby('Particulars')['Withdrawals'].sum().nlargest(5).reset_index()
-        # Adjust the index to start from 1
+
+        # Group by 'Particulars' and sum withdrawals, then get the top 5 vendors
+        expense_summary = (
+            df.groupby('Particulars', as_index=False)
+            .agg({'Withdrawals': 'sum'})
+            .nlargest(5, 'Withdrawals')
+        )
+
+        # Extract the dates for these top vendors
+        top_expense_dates = df[df['Particulars'].isin(expense_summary['Particulars'])].groupby('Particulars')['Date'].apply(
+            lambda x: ', '.join(x.dt.strftime('%d-%m-%Y').unique())
+        ).reset_index()
+
+        # Merge the dates with the expense summary
+        expense_summary = pd.merge(expense_summary, top_expense_dates, on='Particulars')
+        expense_summary.rename(columns={'Date': 'Date of the Expense'}, inplace=True)
+
+        # Adjust the index to start from 1 for better readability
         expense_summary.index = expense_summary.index + 1
-        # Display the DataFrame
+
+        # Display the enhanced DataFrame
         st.dataframe(expense_summary)
+
     
        # Insight 5: Cash Flow Summary
         st.subheader("💰 Cash Flow Summary")
