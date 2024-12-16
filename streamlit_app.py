@@ -4,6 +4,7 @@ import re
 import pandas as pd
 import matplotlib.pyplot as plt
 import time
+import altair as alt
 
 st.set_page_config(
         page_title="ExpenseInsight")
@@ -148,20 +149,63 @@ if uploaded_file is not None:
         st.bar_chart(data=category_summary, x='Category', y='Percentage')
 
        # Insight 2: Weekly Spending Trends
-        st.subheader("Weekly Spending Trends :chart_with_upwards_trend:")
+        st.subheader("Weekly Spending Trends :bar_chart:")
+
         # Ensure 'Date' is a datetime object
         if df['Date'].dtype == 'object':  
             df['Date'] = pd.to_datetime(df['Date'], format='%Y-%m-%d')
-        # Extract the month and calculate the week number within that month (1-4)
-        df['Week_of_Month'] = df['Date'].dt.day // 7 + 1  # Divide day by 7 and add 1 to get week number (1-4)
+
+        # Calculate the week of the month
+        df['Week_of_Month'] = df['Date'].dt.day // 7 + 1  # Week number within the month (1-4)
+
         # Group by the week of the month to calculate total withdrawals
         weekly_summary = df.groupby('Week_of_Month')['Withdrawals'].sum().reset_index()
-        # Rename the column for better readability
-        weekly_summary.rename(columns={'Week_of_Month': 'Week'}, inplace=True)
-        # Plot the chart
-        st.line_chart(data=weekly_summary, x='Week', y='Withdrawals')
 
-        # Insight 3: Top Vendors
+        # Rename columns for better readability
+        weekly_summary.rename(columns={'Week_of_Month': 'Week', 'Withdrawals': 'Total Withdrawals'}, inplace=True)
+
+        # Create an Altair chart for weekly trends
+        weekly_chart = alt.Chart(weekly_summary).mark_line(point=True).encode(
+            x=alt.X('Week:O', title='Week of the Month'),  # Ordinal type for discrete weeks
+            y=alt.Y('Total Withdrawals:Q', title='Withdrawals', scale=alt.Scale(zero=True)),  # Quantitative type for values
+            tooltip=['Week:O', 'Total Withdrawals:Q']
+        ).properties(
+            width=700,
+            height=400,
+            title="Weekly Spending Trends"
+        ).interactive()
+
+        # Display the chart
+        st.altair_chart(weekly_chart, use_container_width=True)
+
+        # Insight 3: Daily Spending Distribution by Day
+        st.subheader("Daily Spending Trends")
+
+        # Identify the maximum spending amount
+        highest_spending = df['Withdrawals'].max()
+
+        # Add a column to flag days with the highest spending
+        df['Highlight'] = df['Withdrawals'] == highest_spending
+
+        # Create an Altair chart for daily spending
+        daily_spending_chart = alt.Chart(df).mark_bar().encode(
+            x=alt.X('Date:T', title='Date'),
+            y=alt.Y('Withdrawals:Q', title='Withdrawal Amount'),
+            color=alt.condition(
+                alt.datum.Highlight,  # Highlight days with the highest spending
+                alt.value('red'),     # Use red for highlighted bars
+                alt.value('steelblue')  # Use blue for others
+            ),
+            tooltip=['Date:T', 'Withdrawals:Q']  # Tooltip to show the date and spending amount
+        ).properties(
+            width=800,
+            height=400,
+        ).interactive()
+
+        # Display the chart
+        st.altair_chart(daily_spending_chart, use_container_width=True)
+
+        # Insight 4: Top Vendors
         st.subheader("Top 5 Expenses")
         # Group by 'Particulars' and sum withdrawals, then get the top 5
         expense_summary = df.groupby('Particulars')['Withdrawals'].sum().nlargest(5).reset_index()
@@ -170,7 +214,7 @@ if uploaded_file is not None:
         # Display the DataFrame
         st.dataframe(expense_summary)
     
-       # Insight 4: Cash Flow Summary
+       # Insight 5: Cash Flow Summary
         st.subheader("💰 Cash Flow Summary")
 
         # Calculate totals for deposits, withdrawals, and net cash flow
