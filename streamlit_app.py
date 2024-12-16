@@ -108,11 +108,25 @@ st.title(":money_with_wings: ExpenseInsight :bar_chart:")
 uploaded_file = st.file_uploader("Please upload your bank statement in PDF format", type="pdf")
 
 if uploaded_file is None:
-    st.markdown("""
-        <div style="background-color: #333333; padding: 10px; border-radius: 5px; font-size: 14px; color: #f1f1f1;">
-            <strong>Note:</strong> Currently this app can only process IndusInd Bank Statement.
+    # Display a concise important note about file handling
+     st.markdown("""
+        <div style="background-color: #444444; padding: 15px; border-radius: 5px; font-size: 14px; color: #f8f9fa;">
+            <strong>⚠️ Important:</strong>
+            <ol style="margin-top: 10px;">
+                <li>Uploaded files are temporarily stored in memory (RAM).</li>
+                <li>Files are automatically deleted when:
+                    <ul>
+                        <li>You upload another file.</li>
+                        <li>You clear the file uploader.</li>
+                        <li>You close the browser tab.</li>
+                    </ul>
+                </li>
+                <li>🔒 <strong>Your privacy is protected:</strong> This app does not save or share your files beyond your session.</li>
+            </ol>
+            <p style="margin-top: 10px;">💡 <strong>Note:</strong> Currently, this app is designed to process only <strong>IndusInd Bank Statements.</strong></p>
         </div>
     """, unsafe_allow_html=True)
+
 
 if uploaded_file is not None:
     try:
