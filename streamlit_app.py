@@ -9,6 +9,20 @@ import altair as alt
 st.set_page_config(
         page_title="ExpenseInsight")
 
+# Inject custom CSS to control the width
+st.markdown(
+    """
+    <style>
+    .main {
+        max-width: 1100px; /* Restrict the app width */
+        margin: 0 auto;    /* Center align the content */
+        padding: 1rem;     /* Add some padding for aesthetics */
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 # Function to process the PDF and extract transactions from all pages
 def process_pdf(file):
     # Read the PDF
@@ -131,13 +145,166 @@ if uploaded_file is None:
 if uploaded_file is not None:
     try:
         # Process the uploaded file
-        st.markdown(":hourglass_flowing_sand: **Processing...**")
-    
-        with st.spinner("Processing your bank statement..."):
-            time.sleep(2)  # Simulating processing time
-            st.success("Processing Complete!")
-            df = process_pdf(uploaded_file)
-            df = categorize_expenses(df)
+        status_placeholder = st.empty()
+
+        # Display the "Processing..." message
+        status_placeholder.markdown(":hourglass_flowing_sand: **Processing...**")
+
+        # Simulate a long-running process
+        time.sleep(3)  # Replace this with your actual processing logic
+
+        # Update the placeholder with a success message or clear it
+        status_placeholder.markdown(":white_check_mark: **Processing Completed!**")
+
+        # Optionally, clear the message after some time
+        time.sleep(2)
+        status_placeholder.empty()  # Removes the message entirely
+        df = process_pdf(uploaded_file)
+        df = categorize_expenses(df)
+        
+        st.markdown("---")
+
+        st.subheader("💰 Cash Flow Summary")
+
+        # Calculate totals for deposits, withdrawals, and net cash flow
+        total_deposits = df['Deposits'].sum()
+        total_withdrawals = df['Withdrawals'].sum()
+        net_cash_flow = total_deposits - total_withdrawals
+
+        # Calculate percentage of savings
+        if total_deposits > 0:
+            savings_percentage = (net_cash_flow / total_deposits) * 100
+        else:
+            savings_percentage = 0  # Avoid division by zero if deposits are 0
+
+        # Create KPI cards using st.columns()
+        col1, col2, col3 = st.columns(3)
+
+        # Total Deposits Card
+        col1.metric(
+            "💳 Total Deposits",
+            f"₹{total_deposits:,.2f}"
+        )
+
+        # Total Withdrawals Card
+        col2.metric(
+            "🏦 Total Withdrawals",
+            f"₹{total_withdrawals:,.2f}"
+        )
+
+        col3.metric(
+            "📊 Remaining Balance",
+            f"₹{net_cash_flow:,.2f}",
+        )
+
+        # Optional: Add a visual separator
+        st.markdown("---")
+
+        # Function for Weekly Spending Trends
+        def weekly_spending_trends(dataframe):
+            st.subheader("Weekly Spending Trends :bar_chart:")
+
+            # Ensure 'Date' is a datetime object
+            dataframe['Date'] = pd.to_datetime(dataframe['Date'], format='%Y-%m-%d')
+
+            # Calculate the week of the month
+            dataframe['Week'] = dataframe['Date'].dt.day // 7 + 1
+
+            # Group by the week of the month to calculate total withdrawals
+            weekly_summary = dataframe.groupby('Week')['Withdrawals'].sum().reset_index()
+
+            # Rename columns for better readability
+            weekly_summary.rename(columns={'Week': 'Week', 'Withdrawals': 'Total Withdrawals'}, inplace=True)
+
+            # Create an Altair chart for weekly trends
+            weekly_chart = alt.Chart(weekly_summary).mark_line(point=True).encode(
+                x=alt.X('Week:O', title='Week of the Month'),
+                y=alt.Y('Total Withdrawals:Q', title='Withdrawals', scale=alt.Scale(zero=True)),
+                tooltip=['Week:O', 'Total Withdrawals:Q']
+            ).properties(
+                width=700,
+                height=400,
+                title="Weekly Spending Trends"
+            )
+
+            # Display the chart
+            st.altair_chart(weekly_chart, use_container_width=True)
+
+        # Function for Daily Spending Trends
+        def daily_spending_trends(dataframe):
+            st.subheader("Daily Spending Trends :calendar:")
+
+            # Ensure 'Date' column is in datetime format
+            dataframe['Date'] = pd.to_datetime(dataframe['Date'])
+
+            # Sum up withdrawals for each day
+            daily_withdrawals = dataframe.groupby('Date', as_index=False)['Withdrawals'].sum()
+
+            # Filter out days with zero withdrawals
+            daily_withdrawals = daily_withdrawals[daily_withdrawals['Withdrawals'] > 0]
+
+            # Identify the maximum spending amount
+            highest_spending = daily_withdrawals['Withdrawals'].max()
+
+            # Add a column to flag days with the highest total spending
+            daily_withdrawals['Highlight'] = daily_withdrawals['Withdrawals'] == highest_spending
+
+            # Create an Altair chart for daily spending
+            daily_spending_chart = alt.Chart(daily_withdrawals).mark_bar().encode(
+                x=alt.X('Date:T', title='Date', axis=alt.Axis(format='%b %d')),
+                y=alt.Y('Withdrawals:Q', title='Total Withdrawal Amount'),
+                color=alt.condition(
+                    alt.datum.Highlight,
+                    alt.value('red'),  # Highlight in red
+                    alt.value('steelblue')  # Default bar color
+                ),
+                tooltip=['Date:T', 'Withdrawals:Q']
+            ).properties(
+                width=1000,
+                height=500,
+                title="Daily Spending Trends"
+            )
+
+            # Display the chart
+            st.altair_chart(daily_spending_chart, use_container_width=True)
+
+
+        # Streamlit App UI
+        st.title("Spending Insights Dashboard")
+        st.write("Analyze your spending patterns with **Weekly** and **Daily** insights.")
+        
+        # Add a radio button for toggling between the two insights
+        insight = st.selectbox(
+            "Choose the insight you'd like to view:",
+            ("Weekly Spending Trends", "Daily Spending Trends")
+        )
+        # Display the selected insight
+        if insight == "Weekly Spending Trends":
+            weekly_spending_trends(df)
+        elif insight == "Daily Spending Trends":
+            daily_spending_trends(df)
+
+        # Apply shadcn styles for improved aesthetics (include in Streamlit setup via HTML/CSS or package)
+        shadcn_styles = """
+            <style>
+                h1 {
+                    font-family: 'Inter', sans-serif;
+                    font-size: 2.5em;
+                    color: #1F2937;
+                }
+                .st-radio > label {
+                    font-size: 1.2em;
+                    color: #374151;
+                }
+                .st-subheader {
+                    font-family: 'Inter', sans-serif;
+                    font-size: 1.5em;
+                    color: #6B7280;
+                }
+            </style>
+        """
+        st.markdown(shadcn_styles, unsafe_allow_html=True)
+
 
         # Display the DataFrame
         st.subheader("Extracted Transactions :page_with_curl:")
@@ -147,83 +314,52 @@ if uploaded_file is not None:
         # Display the DataFrame in Streamlit
         st.dataframe(df_reset)
 
-        # Insight 1: Expense Categorization
         st.subheader("Expense Categorization :card_index_dividers:")
-        # Filter out salary-related entries if you don't want them in the expense category
+
+        # Filter out salary-related entries if you don't want them in the expense chart
         df_filtered = df[df['Category'] != 'Salary']
+
         # Calculate the total withdrawals
         total_withdrawals = df_filtered['Withdrawals'].sum()
+
         # Group by category and calculate the sum of withdrawals for each category
         category_summary = df_filtered.groupby('Category')['Withdrawals'].sum().reset_index()
+
         # Calculate the percentage for each category
         category_summary['Percentage'] = (category_summary['Withdrawals'] / total_withdrawals) * 100
-         # Round the percentages to 2 decimal places
-        category_summary['Percentage'] = category_summary['Percentage'].round(2)
-        # Display the bar chart with percentages
-        st.bar_chart(data=category_summary, x='Category', y='Percentage')
 
-       # Insight 2: Weekly Spending Trends
-        st.subheader("Weekly Spending Trends :bar_chart:")
+        # Matplotlib dark theme
+        plt.style.use("dark_background")
 
-        # Ensure 'Date' is a datetime object
-        if df['Date'].dtype == 'object':  
-            df['Date'] = pd.to_datetime(df['Date'], format='%Y-%m-%d')
+        import plotly.express as px
 
-        # Calculate the week of the month
-        df['Week_of_Month'] = df['Date'].dt.day // 7 + 1  # Week number within the month (1-4)
+        # Create a Plotly Pie Chart with dark theme
+        fig = px.pie(
+            category_summary, 
+            values='Withdrawals', 
+            names='Category',
+            color_discrete_sequence=px.colors.qualitative.Set3  # Choose a color palette
+        )
 
-        # Group by the week of the month to calculate total withdrawals
-        weekly_summary = df.groupby('Week_of_Month')['Withdrawals'].sum().reset_index()
-
-        # Rename columns for better readability
-        weekly_summary.rename(columns={'Week_of_Month': 'Week', 'Withdrawals': 'Total Withdrawals'}, inplace=True)
-
-        # Create an Altair chart for weekly trends
-        weekly_chart = alt.Chart(weekly_summary).mark_line(point=True).encode(
-            x=alt.X('Week:O', title='Week of the Month'),  # Ordinal type for discrete weeks
-            y=alt.Y('Total Withdrawals:Q', title='Withdrawals', scale=alt.Scale(zero=True)),  # Quantitative type for values
-            tooltip=['Week:O', 'Total Withdrawals:Q']
-        ).properties(
-            width=700,
-            height=400,
-            title="Weekly Spending Trends"
-        ).interactive()
-
-        # Display the chart
-        st.altair_chart(weekly_chart, use_container_width=True)
-
-       # Insight 3: Daily Spending Distribution by Day
-        st.subheader("Daily Spending Trends")
-
-        # Ensure 'Date' column is in datetime format
-        df['Date'] = pd.to_datetime(df['Date'])
-
-        # Sum up withdrawals for each day
-        daily_withdrawals = df.groupby('Date', as_index=False)['Withdrawals'].sum()
-
-        # Identify the maximum spending amount
-        highest_spending = daily_withdrawals['Withdrawals'].max()
-
-        # Add a column to flag days with the highest total spending
-        daily_withdrawals['Highlight'] = daily_withdrawals['Withdrawals'] == highest_spending
-
-        # Create an Altair chart for daily spending
-        daily_spending_chart = alt.Chart(daily_withdrawals).mark_bar().encode(
-            x=alt.X('Date:T', title='Date'),
-            y=alt.Y('Withdrawals:Q', title='Total Withdrawal Amount'),
-            color=alt.condition(
-                alt.datum.Highlight,  # Highlight days with the highest spending
-                alt.value('red'),     # Use red for highlighted bars
-                alt.value('steelblue')  # Use blue for others
+        # Customize the layout for a dark theme and move labels below
+        fig.update_layout(
+            title=dict(text=""),  # Remove the chart title
+            paper_bgcolor="#0e1117",  # Background of the chart
+            plot_bgcolor="#0e1117",
+            font=dict(color="white"),  # Font color for labels
+            legend=dict(
+                orientation="h",  # Horizontal orientation for the legend
+                yanchor="bottom",  # Align to bottom of the chart
+                y=-0.3,  # Position legend below the chart
+                xanchor="center",  # Center align the legend
+                x=0.5  # Center horizontally
             ),
-            tooltip=['Date:T', 'Withdrawals:Q']  # Tooltip to show the date and spending amount
-        ).properties(
-            width=800,
-            height=400,
-        ).interactive()
+            width=800,  # Adjust width for larger chart
+            height=600
+        )
 
-        # Display the chart
-        st.altair_chart(daily_spending_chart, use_container_width=True)
+        # Display the chart in Streamlit
+        st.plotly_chart(fig, use_container_width=True)
 
         # Insight 4: Top 5 Expenses
         st.subheader("Top 5 Expenses")
@@ -249,26 +385,6 @@ if uploaded_file is not None:
 
         # Display the enhanced DataFrame
         st.dataframe(expense_summary)
-
-    
-       # Insight 5: Cash Flow Summary
-        st.subheader("💰 Cash Flow Summary")
-
-        # Calculate totals for deposits, withdrawals, and net cash flow
-        total_deposits = df['Deposits'].sum()
-        total_withdrawals = df['Withdrawals'].sum()
-        net_cash_flow = total_deposits - total_withdrawals
-
-        # Calculate percentage of savings
-        if total_deposits > 0:
-            savings_percentage = (net_cash_flow / total_deposits) * 100
-        else:
-            savings_percentage = 0  # Avoid division by zero if deposits are 0
-
-        # Display metrics
-        st.metric("Total Deposits", f"₹{total_deposits:,.2f}")
-        st.metric("Total Withdrawals", f"₹{total_withdrawals:,.2f}")
-        st.metric("Remaining Balance", f"₹{net_cash_flow:,.2f}")
 
         # Provide feedback based on savings percentage
         if savings_percentage > 50:
